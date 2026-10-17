@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: newtonite
+      POSTGRES_PASSWORD: newtonite-local-only
+      POSTGRES_DB: newtonite
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U newtonite -d newtonite"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  migrate:
+    build: .
+    command: sh -c "npm run db:deploy && npm run db:seed"
+    environment:
+      DATABASE_URL: postgresql://newtonite:newtonite-local-only@db:5432/newtonite?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+  app:
+    build: .
+    command: npm run start
+    environment:
+      DATABASE_URL: postgresql://newtonite:newtonite-local-only@db:5432/newtonite?schema=public
+      JWT_SECRET: local-demo-signing-secret-change-before-any-public-deployment
+      APP_URL: http://localhost:3000
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  worker:
+    build: .
+    command: npm run worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://newtonite:newtonite-local-only@db:5432/newtonite?schema=public
+      NODE_ENV: production
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
