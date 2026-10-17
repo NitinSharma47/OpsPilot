@@ -36,6 +36,7 @@ Requires Node.js 22+, Docker Compose, and PowerShell. PostgreSQL runs in Docker 
 Copy-Item .env.example .env
 docker compose up -d db
 npm ci
+npm run db:generate
 npm run db:deploy
 npm run db:seed
 npm run dev
@@ -56,6 +57,7 @@ The workflow tests use a real PostgreSQL database. Start the database and ensure
 ```powershell
 docker compose up -d db
 npm ci
+npm run db:generate
 npm run db:deploy
 npm test
 npm run typecheck
