@@ -22,8 +22,8 @@ async function main() {
     }),
     prisma.user.upsert({
       where: { email: "lead@newtonite.demo" },
-      update: { name: "Jordan Lee", passwordHash },
-      create: { name: "Jordan Lee", email: "lead@newtonite.demo", passwordHash },
+      update: { name: "Nitin Sharma", passwordHash },
+      create: { name: "Nitin Sharma", email: "lead@newtonite.demo", passwordHash },
     }),
     prisma.user.upsert({
       where: { email: "member@newtonite.demo" },

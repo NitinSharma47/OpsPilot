@@ -1,6 +1,6 @@
-# Fieldnote — Operations under pressure
+# OpsPilot — Operations under pressure
 
-Fieldnote is a small, team-scoped operations desk for work that should not disappear into chat. It brings ownership, urgency, workflow decisions, handoffs, and an append-only activity trail into one place.
+OpsPilot is a small, team-scoped operations desk for work that should not disappear into chat. It brings ownership, urgency, workflow decisions, handoffs, and an append-only activity trail into one place.
 
 ## Run the complete application
 
@@ -52,9 +52,10 @@ To stop the local database, run `docker compose stop db`. The named Docker volum
 
 ## Run the automated tests
 
-The workflow tests use a real PostgreSQL database. Start the database and ensure `.env` contains the local URL before running:
+The workflow tests use a real PostgreSQL database. Create the ignored local `.env` file from the template if you have not already done so, then start the database and run the tests:
 
 ```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 docker compose up -d db
 npm ci
 npm run db:generate
@@ -68,7 +69,8 @@ The tests create an isolated team and demo users with unique names, then remove 
 ## What is implemented
 
 - A role-aware dashboard with team filters, search, paginated work, and quick views for assigned work, urgent unclaimed items, and lead approvals.
-- Item details with comments, searchable context, due dates, ownership, and a timestamped activity trail.
+- Team-specific work queues, a personal profile, and a saved four-theme appearance preference.
+- Item details with comments (authors may delete their own notes; team leads may moderate), searchable context, due dates, ownership, and a timestamped activity trail.
 - Server-side access checks for every item read and mutation. Viewer, Member, Lead, and Admin roles are scoped to each team.
 - Server-enforced workflow transitions, including a Lead/Admin-only approval decision and closure.
 - Atomic claims, optimistic version checks, and idempotent item creation.

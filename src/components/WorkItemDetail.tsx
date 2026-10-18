@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiRequest, RequestError } from "@/lib/client-api";
+import ThemeMenu from "@/components/ThemeMenu";
+import Brand from "@/components/Brand";
 
 type Person = { id: string; name: string; email?: string };
 type TeamMember = Person & { role: string };
@@ -44,6 +46,7 @@ export default function WorkItemDetail({ itemId }: { itemId: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadingActivity, setLoadingActivity] = useState(false);
+  const [deletingComment, setDeletingComment] = useState<string | null>(null);
   const [comment, setComment] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -80,6 +83,12 @@ export default function WorkItemDetail({ itemId }: { itemId: string }) {
   const canWork = (roleScore[role] ?? 0) >= roleScore.MEMBER;
   const canLead = (roleScore[role] ?? 0) >= roleScore.LEAD;
   const isActive = !["RESOLVED", "CLOSED"].includes(item.status);
+  const workflowSteps = ["OPEN", "IN_PROGRESS", "AWAITING_APPROVAL", "RESOLVED", "CLOSED"];
+  const workflowPosition = workflowSteps.indexOf(item.status);
+  const nextAction = item.status === "OPEN" ? "Start the work" :
+    item.status === "IN_PROGRESS" ? "Make progress, then request a lead review" :
+      item.status === "AWAITING_APPROVAL" ? "A team lead needs to decide" :
+        item.status === "RESOLVED" ? "Close the loop when you're ready" : "This item is complete";
 
   async function perform(action: () => Promise<unknown>, success?: (result: unknown) => void) {
     setSaving(true);
@@ -94,6 +103,13 @@ export default function WorkItemDetail({ itemId }: { itemId: string }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function deleteComment(commentId: string) {
+    if (!window.confirm("Remove this note? This cannot be undone.")) return;
+    setDeletingComment(commentId);
+    await perform(() => apiRequest(`/api/items/${currentItem.id}/comments/${commentId}`, { method: "DELETE" }));
+    setDeletingComment(null);
   }
 
   async function updateDetails(event: FormEvent<HTMLFormElement>) {
@@ -149,17 +165,17 @@ export default function WorkItemDetail({ itemId }: { itemId: string }) {
   return (
     <main className="app-shell">
       <aside className="sidebar detail-sidebar">
-        <Link className="brand brand-sidebar" href="/"><span className="brand-mark">F</span><span>fieldnote<span className="brand-period">.</span></span></Link>
+        <Brand className="brand-sidebar" />
         <div className="workspace-label">WORKSPACE</div>
         <Link href="/" className="detail-back-nav"><span>←</span> All work</Link>
         <div className="sidebar-divider" />
         <div className="detail-context"><span className="context-type">{titleFor[item.type]}</span><h3>{item.title}</h3><span className="context-id">FN-{item.id.slice(-6).toUpperCase()}</span></div>
-        <div className="sidebar-bottom"><button className="user-menu" onClick={async () => { await apiRequest("/api/auth/logout", { method: "POST" }); router.replace("/login"); }}>
-          <span className="user-avatar">{user ? initials(user.name) : "?"}</span><span className="user-meta"><strong>{user?.name ?? "Your account"}</strong><small>{role.toLowerCase()} · {item.team.name}</small></span><span className="user-more">↗</span>
-        </button></div>
+        <div className="sidebar-bottom"><div className="help-card"><div className="help-mark">✳</div><strong>A clearer handoff</strong><p>Before you pass work along, share what changed, what comes next, and who owns it.</p></div><Link className="user-menu" href="/profile">
+          <span className="user-avatar">{user ? initials(user.name) : "?"}</span><span className="user-meta"><strong>{user?.name ?? "Your account"}</strong><small>{role.toLowerCase()} · {item.team.name}</small></span><span className="user-more">Profile ↗</span>
+        </Link></div>
       </aside>
       <section className="main-panel">
-        <header className="topbar"><div className="breadcrumb"><Link href="/">Operations</Link><span className="crumb-slash">/</span><Link href="/">Work queue</Link><span className="crumb-slash">/</span><strong>{item.id.slice(-6).toUpperCase()}</strong></div><div className="topbar-right"><span className="live-indicator"><span /> Changes saved live</span></div></header>
+        <header className="topbar"><div className="breadcrumb"><Link href="/">Operations</Link><span className="crumb-slash">/</span><Link href={`/teams/${item.team.id}`}>{item.team.name}</Link><span className="crumb-slash">/</span><strong>{item.id.slice(-6).toUpperCase()}</strong></div><div className="topbar-right"><span className="live-indicator"><span /> Changes saved live</span><ThemeMenu /></div></header>
         <div className="detail-content">
           <div className="detail-topline"><Link href="/" className="back-link">← Back to work queue</Link><span>Last updated {timestamp(item.updatedAt)}</span></div>
           {error && <div className="notice notice-error" role="alert"><span>!</span><div>{error}{error.toLowerCase().includes("changed") && <p>Your local changes were not applied. The latest version is now loaded.</p>}</div><button onClick={() => setError("")} aria-label="Dismiss">×</button></div>}
@@ -182,7 +198,7 @@ export default function WorkItemDetail({ itemId }: { itemId: string }) {
                 <div className="timeline">
                   {item.activities.map((activity, index) => (
                     <article className="timeline-entry" key={activity.id}>
-                      <span className={`timeline-marker marker-${activity.type.toLowerCase()}`}>{activity.type === "STATUS_CHANGED" ? "↗" : activity.type === "PRIORITY_CHANGED" ? "!" : activity.type === "COMMENTED" ? "“" : activity.type === "CREATED" ? "＋" : "·"}</span>
+                      <span className={`timeline-marker marker-${activity.type.toLowerCase()}`}>{activity.type === "STATUS_CHANGED" ? "↗" : activity.type === "PRIORITY_CHANGED" ? "!" : activity.type === "COMMENTED" ? "“" : activity.type === "NOTE_DELETED" ? "−" : activity.type === "CREATED" ? "＋" : "·"}</span>
                       <div className="timeline-content"><div className="timeline-message"><strong>{activity.actor.name}</strong> {activity.message}</div><time>{timestamp(activity.createdAt)}</time></div>
                       {index < item.activities.length - 1 && <span className="timeline-line" />}
                     </article>
@@ -195,7 +211,10 @@ export default function WorkItemDetail({ itemId }: { itemId: string }) {
               <section className="detail-card comments-card">
                 <div className="section-heading"><div><p className="eyebrow">KEEP THE HANDOFF HUMAN</p><h2>Notes & conversation <span className="inline-count">{item.comments.length}</span></h2></div><span className="section-number">03</span></div>
                 <div className="comments-list">
-                  {item.comments.map((entry) => <article className="comment-entry" key={entry.id}><span className="comment-avatar">{initials(entry.author.name)}</span><div><div className="comment-meta"><strong>{entry.author.name}</strong><time>{timestamp(entry.createdAt)}</time></div><p>{entry.body}</p></div></article>)}
+                  {item.comments.map((entry) => {
+                    const canDelete = entry.author.id === user?.id || canLead;
+                    return <article className="comment-entry" key={entry.id}><span className="comment-avatar">{initials(entry.author.name)}</span><div className="comment-body"><div className="comment-meta"><strong>{entry.author.name}</strong><time>{timestamp(entry.createdAt)}</time>{canDelete && <button className="delete-note-button" title="Delete note" aria-label={`Delete note by ${entry.author.name}`} disabled={deletingComment === entry.id || saving} onClick={() => void deleteComment(entry.id)}>{deletingComment === entry.id ? "…" : "Delete"}</button>}</div><p>{entry.body}</p></div></article>;
+                  })}
                   {!item.comments.length && <p className="muted-copy">No notes yet. Add context that helps the next person.</p>}
                 </div>
                 {canWork && <form className="comment-form" onSubmit={postComment}><textarea value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Share a useful update or handoff…" rows={3} maxLength={4000} aria-label="Write a comment" /><div><span>Visible to teammates in {item.team.name}</span><button className="button button-primary button-small" disabled={saving || !comment.trim()}>Add note <span>→</span></button></div></form>}
@@ -206,7 +225,11 @@ export default function WorkItemDetail({ itemId }: { itemId: string }) {
               <section className="detail-card next-step-card">
                 <p className="eyebrow">THE NEXT STEP</p>
                 <h2>{item.status === "AWAITING_APPROVAL" ? "A decision is needed." : item.status === "RESOLVED" ? "Ready to close the loop." : item.status === "CLOSED" ? "This work is complete." : item.assigneeId ? "Keep the momentum." : "Who can take this forward?"}</h2>
-                <p>{item.status === "AWAITING_APPROVAL" ? "A team lead can approve the completed work or send it back with a note." : item.status === "CLOSED" ? "The history stays here for the next time." : item.assignee ? `${item.assignee.name.split(" ")[0]} is accountable for the next move.` : "A clear owner makes the next move possible."}</p>
+                <p className="next-step-guidance">{item.status === "AWAITING_APPROVAL" ? "A team lead can approve the completed work or send it back so the team can continue." : item.status === "CLOSED" ? "This item stays in the history for future reference." : item.assignee ? `${item.assignee.name.split(" ")[0]} owns the next move. ${nextAction}.` : `Nobody owns this yet. A clear owner makes the next move possible. ${nextAction}.`}</p>
+                <div className="workflow-progress" aria-label={`Workflow progress: ${titleFor[item.status]}`}>
+                  {workflowSteps.map((step, index) => <span key={step} className={`workflow-progress-step ${index < workflowPosition ? "workflow-step-done" : ""} ${index === workflowPosition ? "workflow-step-current" : ""}`} title={titleFor[step]}><span>{index < workflowPosition ? "✓" : String(index + 1)}</span><small>{titleFor[step]}</small></span>)}
+                </div>
+                {item.dueAt && <div className="next-step-due"><span>Target date</span><strong className={new Date(item.dueAt) < new Date() && isActive ? "due-over" : ""}>{new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(item.dueAt))}</strong></div>}
                 {!item.assigneeId && isActive && canWork && <button className="button button-primary button-wide" disabled={saving} onClick={() => void perform(() => apiRequest(`/api/items/${item.id}/claim`, { method: "POST", body: JSON.stringify({ version: item.version }) }))}>Take ownership <span>→</span></button>}
                 {item.assigneeId === user?.id && isActive && <div className="ownership-note"><span className="status-dot green-dot" /> You’re the owner of this item.</div>}
                 {!canWork && <div className="ownership-note">Read-only access for your team role.</div>}
@@ -250,7 +273,7 @@ export default function WorkItemDetail({ itemId }: { itemId: string }) {
               <div className="privacy-note"><span>◇</span><p>Visible only to members of <strong>{item.team.name}</strong>. Access is checked every time.</p></div>
             </aside>
           </div>
-          <footer className="page-footer"><span>FIELDNOTE <span className="brand-period">·</span> BUILT FOR CLEAR HANDOFFS</span><span>Every important detail, accounted for.</span></footer>
+          <footer className="page-footer"><span>OPSPILOT <span className="brand-period">·</span> BUILT FOR CLEAR HANDOFFS</span><span>Every important detail, accounted for.</span></footer>
         </div>
       </section>
     </main>

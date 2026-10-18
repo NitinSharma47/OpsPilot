@@ -191,3 +191,30 @@ export async function transitionWorkItem(
     return updated;
   });
 }
+
+export async function deleteWorkComment(user: CurrentUser, itemId: string, commentId: string) {
+  const { role } = await getItemForUser(itemId, user);
+  const comment = await prisma.comment.findFirst({
+    where: { id: commentId, itemId },
+    include: { author: { select: { name: true } } },
+  });
+  if (!comment) throw new ApiError(404, "Note not found.");
+  if (comment.authorId !== user.id) requireMinimumRole(role, "LEAD");
+
+  await prisma.$transaction(async (tx) => {
+    const deleted = await tx.comment.deleteMany({ where: { id: commentId, itemId } });
+    if (!deleted.count) throw new ApiError(404, "Note has already been removed.");
+    await tx.activityEvent.create({
+      data: {
+        itemId,
+        actorId: user.id,
+        type: "NOTE_DELETED",
+        message: comment.authorId === user.id
+          ? "Removed a note they posted."
+          : `Removed a note posted by ${comment.author.name}.`,
+        metadata: { commentId, authorId: comment.authorId },
+      },
+    });
+  });
+  return { ok: true, commentId };
+}

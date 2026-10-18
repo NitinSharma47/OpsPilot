@@ -1,4 +1,4 @@
-# Engineering decisions
+# OpsPilot engineering decisions
 
 ## 1. Relational team membership and a compact work-item model
 

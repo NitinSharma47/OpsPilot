@@ -1,14 +1,34 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest, RequestError } from "@/lib/client-api";
+import Brand from "@/components/Brand";
 
 const demoAccounts = [
   ["Operations lead", "lead@newtonite.demo"],
   ["Operations member", "member@newtonite.demo"],
   ["Read-only viewer", "viewer@newtonite.demo"],
   ["Administrator", "admin@newtonite.demo"],
+];
+const quotes = [
+  { text: "A thoughtful handoff turns someone else’s next step into a clear one.", author: "An OpsPilot field note" },
+  { text: "Urgency moves faster when everyone knows who owns the next move.", author: "An OpsPilot field note" },
+  { text: "Good operations are built one clear decision at a time.", author: "An OpsPilot field note" },
+  { text: "Make the important work visible; give people room to do it well.", author: "An OpsPilot field note" },
+  { text: "Leave the next person more context than you wish you had.", author: "An OpsPilot field note" },
+  { text: "Small, reliable updates can make a demanding day feel manageable.", author: "An OpsPilot field note" },
+];
+const proofPoints = [
+  "One accountable owner",
+  "A decision trail you can trust",
+  "The next step, always in view",
+  "Urgency without the uncertainty",
+  "Every handoff, with context",
+  "A calmer way through busy days",
+  "The right people, right on time",
+  "Progress you can see together",
+  "Clear priorities. Fewer surprises.",
 ];
 
 export default function Login() {
@@ -17,6 +37,19 @@ export default function Login() {
   const [password, setPassword] = useState("OpsDemo2026!");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [quote, setQuote] = useState<(typeof quotes)[number] | null>(null);
+  const [features, setFeatures] = useState<string[]>([]);
+
+  useEffect(() => {
+    const choice = quotes[Math.floor(Math.random() * quotes.length)];
+    setQuote(choice);
+    const shuffled = [...proofPoints];
+    for (let index = shuffled.length - 1; index > 0; index--) {
+      const otherIndex = Math.floor(Math.random() * (index + 1));
+      [shuffled[index], shuffled[otherIndex]] = [shuffled[otherIndex], shuffled[index]];
+    }
+    setFeatures(shuffled.slice(0, 3));
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,9 +71,7 @@ export default function Login() {
   return (
     <main className="login-shell">
       <section className="login-panel">
-        <a className="brand" href="/" aria-label="Fieldnote home">
-          <span className="brand-mark">F</span><span>fieldnote<span className="brand-period">.</span></span>
-        </a>
+        <Brand />
         <div className="login-copy">
           <p className="eyebrow">OPERATIONS WORKSPACE</p>
           <h1>Good work starts with a clear handoff.</h1>
@@ -67,21 +98,20 @@ export default function Login() {
             ))}
           </div>
         </div>
-        <p className="login-footnote">Newtonite · Operations under pressure, handled with care.</p>
+        <p className="login-footnote">OpsPilot · Operations under pressure, handled with care.</p>
       </section>
       <aside className="login-aside">
         <div className="aside-grain" />
         <div className="aside-copy">
           <span className="aside-kicker">A clearer signal in the noise</span>
-          <h2>Work that matters.<br /><em>Never lost in the thread.</em></h2>
+          <div className="quote-ornament" aria-hidden="true">“</div>
+          <blockquote className={`welcome-quote ${quote ? "welcome-quote-ready" : ""}`} key={quote?.text ?? "loading-quote"}>{quote?.text ?? ""}</blockquote>
+          <p className={`quote-author ${quote ? "quote-author-ready" : ""}`}>{quote?.author ?? ""}</p>
           <div className="aside-rule" />
-          <div className="aside-proof">
-            <div><strong>01</strong><span>One accountable owner</span></div>
-            <div><strong>02</strong><span>A decision trail you can trust</span></div>
-            <div><strong>03</strong><span>The next step, always in view</span></div>
-          </div>
+          <h2 className="aside-promise">Work that matters.<br /><em>Never lost in the thread.</em></h2>
+          <div className="aside-proof">{features.map((text) => <div key={text}><span>{text}</span></div>)}</div>
         </div>
-        <div className="aside-footer"><span>BUILT FOR THE MOMENT THAT MATTERS</span><span>01 — 04</span></div>
+        <div className="aside-footer"><span>BUILT FOR THE MOMENT THAT MATTERS</span><span>A LITTLE CLARITY, EVERY DAY</span></div>
       </aside>
     </main>
   );

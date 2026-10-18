@@ -5,3 +5,5 @@ coverage/
 .env*
 !.env.example
 *.log
+/GU_CCIO_Advisory_Newtonite_Software_Engineering_Execution_Plan (1).md
+/Newtonite_Software_Engineering_Challenge.md

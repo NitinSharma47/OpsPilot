@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiRequest, RequestError } from "@/lib/client-api";
 import { priorities, statuses, workTypes } from "@/lib/schemas";
+import ThemeMenu from "@/components/ThemeMenu";
+import Brand, { BrandMark } from "@/components/Brand";
 
 type User = {
   id: string; name: string; email: string;
@@ -26,7 +28,7 @@ const labels: Record<string, string> = {
 };
 const dateLabel = (value: string) => new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(value));
 
-export default function Dashboard() {
+export default function Dashboard({ initialTeamId = "" }: { initialTeamId?: string }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [counts, setCounts] = useState<Counts>({ assignedToMe: 0, urgentUnassigned: 0, awaitingApproval: 0 });
@@ -37,7 +39,7 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
-  const [teamId, setTeamId] = useState("");
+  const [teamId, setTeamId] = useState(initialTeamId);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -46,9 +48,6 @@ export default function Dashboard() {
     const timer = window.setTimeout(() => setSearch(query.trim()), 250);
     return () => window.clearTimeout(timer);
   }, [query]);
-
-  useEffect(() => {
-  }, [view, search, status, priority, teamId]);
 
   const loadItems = useCallback(async (append = false, pageCursor?: string | null) => {
     if (!user) return;
@@ -114,13 +113,9 @@ export default function Dashboard() {
     }
   }
 
-  async function signOut() {
-    await apiRequest("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
-  }
-
-  if (!user) return <main className="boot-screen"><span className="brand-mark">F</span><p>Opening your workspace…</p></main>;
+  if (!user) return <main className="boot-screen"><BrandMark /><p>Opening your workspace…</p></main>;
   const canCreate = user.memberships.some(({ role }) => role !== "VIEWER");
+  const activeTeam = user.memberships.find(({ team }) => team.id === teamId)?.team;
 
   const tabs = [
     { id: "all", label: "All work" },
@@ -133,7 +128,7 @@ export default function Dashboard() {
   return (
     <main className="app-shell">
       <aside className="sidebar">
-        <a className="brand brand-sidebar" href="/"><span className="brand-mark">F</span><span>fieldnote<span className="brand-period">.</span></span></a>
+        <Brand className="brand-sidebar" />
         <div className="workspace-label">WORKSPACE</div>
         <div className="workspace-switch"><span className="workspace-avatar">N</span><span><strong>Newtonite</strong><small>Operations team</small></span><span className="chevron">⌄</span></div>
         <div className="nav-section-label">YOUR QUEUE</div>
@@ -150,34 +145,35 @@ export default function Dashboard() {
         <div className="nav-section-label">YOUR TEAMS</div>
         <div className="team-list">
           {user.memberships.map(({ team, role }, index) => (
-            <button key={team.id} className={`team-button ${teamId === team.id ? "team-selected" : ""}`} onClick={() => setTeamId(teamId === team.id ? "" : team.id)}>
+            <Link key={team.id} href={`/teams/${team.id}`} className={`team-button ${teamId === team.id ? "team-selected" : ""}`}>
               <span className={`team-dot team-dot-${index % 4}`} />{team.name}
               <span className="team-role">{role.toLowerCase()}</span>
-            </button>
+              <span className="team-open-arrow">↗</span>
+            </Link>
           ))}
         </div>
         <div className="sidebar-bottom">
-          <div className="help-card"><div className="help-mark">?</div><strong>Need a hand?</strong><p>Keep every handoff clear and kind.</p></div>
-          <button className="user-menu" onClick={signOut}>
+          <div className="help-card"><div className="help-mark">✳</div><strong>A clearer handoff</strong><p>Every good update answers three things:</p><ul><li>What changed?</li><li>What happens next?</li><li>Who owns it?</li></ul></div>
+          <Link className="user-menu" href="/profile">
             <span className="user-avatar">{user.name.split(" ").map((part) => part[0]).slice(0, 2).join("")}</span>
             <span className="user-meta"><strong>{user.name}</strong><small>{user.email}</small></span>
-            <span className="user-more">↗</span>
-          </button>
+            <span className="user-more">Profile ↗</span>
+          </Link>
         </div>
       </aside>
 
       <section className="main-panel">
         <header className="topbar">
-          <div className="breadcrumb"><span>Operations</span><span className="crumb-slash">/</span><strong>Work queue</strong></div>
-          <div className="topbar-right"><span className="live-indicator"><span /> All systems normal</span><div className="topbar-divider" /><span className="today-label">{new Intl.DateTimeFormat("en", { weekday: "short", month: "short", day: "numeric" }).format(new Date())}</span></div>
+          <div className="breadcrumb"><Link href="/">Operations</Link><span className="crumb-slash">/</span><strong>{activeTeam?.name ?? "Work queue"}</strong></div>
+          <div className="topbar-right"><span className="live-indicator"><span /> All systems normal</span><div className="topbar-divider" /><span className="today-label">{new Intl.DateTimeFormat("en", { weekday: "short", month: "short", day: "numeric" }).format(new Date())}</span><ThemeMenu /></div>
         </header>
 
         <div className="page-content">
           <div className="page-heading">
             <div>
-              <p className="eyebrow">YOUR OPERATIONS DESK</p>
-              <h1>{view === "assigned" ? "Your work" : view === "urgent" ? "Urgent & unclaimed" : view === "approval" ? "Ready for your review" : "Good work, in motion."}</h1>
-              <p className="page-subtitle">{view === "all" ? "A clear view of what needs care, and who is taking it forward." : "A shared, up-to-date view across your teams."}</p>
+              <p className="eyebrow">{activeTeam ? `${activeTeam.name.toUpperCase()} TEAM` : "YOUR OPERATIONS DESK"}</p>
+              <h1>{activeTeam ? `${activeTeam.name}, in focus.` : view === "assigned" ? "Your work" : view === "urgent" ? "Urgent & unclaimed" : view === "approval" ? "Ready for your review" : "Good work, in motion."}</h1>
+              <p className="page-subtitle">{activeTeam ? `A shared view of ${activeTeam.name} work, ownership, and what needs attention next.` : view === "all" ? "A clear view of what needs care, and who is taking it forward." : "A shared, up-to-date view across your teams."}</p>
             </div>
             {canCreate && <button className="button button-primary create-button" onClick={() => setShowCreate(true)}><span className="plus-sign">＋</span> New work item</button>}
           </div>
@@ -227,7 +223,7 @@ export default function Dashboard() {
             </div>
             <div className="table-footer"><span>Showing {items.length} item{items.length === 1 ? "" : "s"}{nextCursor ? " · more available" : ""}</span>{nextCursor && <button className="button button-secondary button-small" disabled={loading} onClick={() => void loadItems(true, nextCursor)}>Load more <span>↓</span></button>}</div>
           </div>
-          <footer className="page-footer"><span>FIELDNOTE <span className="brand-period">·</span> BUILT FOR CLEAR HANDOFFS</span><span>Every important detail, accounted for.</span></footer>
+          <footer className="page-footer"><span>OPSPILOT <span className="brand-period">·</span> BUILT FOR CLEAR HANDOFFS</span><span>Every important detail, accounted for.</span></footer>
         </div>
       </section>
 

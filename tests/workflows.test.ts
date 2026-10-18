@@ -1,7 +1,7 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient, type WorkItem } from "@prisma/client";
 import { randomUUID } from "node:crypto";
-import { createWorkItem, updateWorkItem, claimWorkItem, transitionWorkItem } from "../src/lib/items";
+import { createWorkItem, updateWorkItem, claimWorkItem, transitionWorkItem, deleteWorkComment } from "../src/lib/items";
 import { getItemForUser } from "../src/lib/permissions";
 import type { CurrentUser } from "../src/lib/auth";
 
@@ -136,6 +136,22 @@ describe("operational work correctness", () => {
     const item = await makeItem();
     await updateWorkItem(lead, item.id, { version: item.version, priority: "URGENT" });
     await expect(claimWorkItem(member, item.id, item.version)).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("lets note authors and team leads remove notes without erasing the audit trail", async () => {
+    const item = await makeItem();
+    const ownNote = await prisma.comment.create({
+      data: { itemId: item.id, authorId: member.id, body: "My own note." },
+    });
+    await expect(deleteWorkComment(secondMember, item.id, ownNote.id)).rejects.toMatchObject({ status: 403 });
+    await expect(deleteWorkComment(member, item.id, ownNote.id)).resolves.toEqual({ ok: true, commentId: ownNote.id });
+
+    const teammateNote = await prisma.comment.create({
+      data: { itemId: item.id, authorId: secondMember.id, body: "A note for lead moderation." },
+    });
+    await expect(deleteWorkComment(lead, item.id, teammateNote.id)).resolves.toEqual({ ok: true, commentId: teammateNote.id });
+    expect(await prisma.comment.count({ where: { itemId: item.id } })).toBe(0);
+    expect(await prisma.activityEvent.count({ where: { itemId: item.id, type: "NOTE_DELETED" } })).toBe(2);
   });
 
 });

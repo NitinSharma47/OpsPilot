@@ -45,6 +45,7 @@ enum ActivityType {
   PRIORITY_CHANGED
   STATUS_CHANGED
   COMMENTED
+  NOTE_DELETED
 }
 
 enum OutboxStatus {
